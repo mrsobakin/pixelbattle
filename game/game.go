@@ -15,7 +15,7 @@ import (
 
 type GameConfig struct {
 	Cooldown time.Duration
-	Buffer   int
+	Buffer   uint64
 	Width    int
 	Height   int
 }

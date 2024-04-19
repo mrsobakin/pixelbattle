@@ -8,12 +8,12 @@ import (
 type MPMC[T any] struct {
 	lock     sync.Mutex
 	notify   *sync.Cond
-	idx      int
-	capacity int
+	idx      uint64
+	capacity uint64
 	buffer   []T
 }
 
-func NewMPMC[T any](capacity int) *MPMC[T] {
+func NewMPMC[T any](capacity uint64) *MPMC[T] {
 	return &MPMC[T]{
 		notify:   sync.NewCond(&sync.Mutex{}),
 		idx:      0,
@@ -34,7 +34,7 @@ func (mpmc *MPMC[T]) Send(value T) {
 
 type Consumer[T any] struct {
 	mpmc *MPMC[T]
-	last int
+	last uint64
 }
 
 func (mpmc *MPMC[T]) Subscribe() *Consumer[T] {
