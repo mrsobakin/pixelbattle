@@ -54,8 +54,8 @@ func (c *Consumer[T]) Receive() (*T, error) {
 	}
 
 	if c.mpmc.idx == c.last {
-		c.mpmc.lock.Unlock()
 		c.mpmc.notify.L.Lock()
+		c.mpmc.lock.Unlock()
 		c.mpmc.notify.Wait()
 		c.mpmc.notify.L.Unlock()
 		return c.Receive()
