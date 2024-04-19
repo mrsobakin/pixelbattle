@@ -15,13 +15,16 @@ func main() {
 
 	auth := auth.NewRemoteAuthenticator(*url)
 	game := game.NewGame(auth, game.GameConfig{
-		Width:    500,
-		Height:   250,
-		Buffer:   10000000,
-		Cooldown: 10 * time.Second,
+		CanvasPath: "./canvas.png",
+		Width:      500,
+		Height:     250,
+		Buffer:     10000000,
+		Cooldown:   10 * time.Second,
 	})
 
 	go game.GameLoop()
+	go game.CanvasSavingRoutine()
+	defer game.SaveCanvas()
 
 	http.HandleFunc("/", game.HandleConnection)
 	http.ListenAndServe(":8080", nil)

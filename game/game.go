@@ -2,7 +2,6 @@ package game
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/gorilla/websocket"
 	"github.com/mrsobakin/pixelbattle/auth"
 	"github.com/mrsobakin/pixelbattle/internal"
@@ -14,27 +13,52 @@ import (
 )
 
 type GameConfig struct {
-	Cooldown time.Duration
-	Buffer   uint64
-	Width    int
-	Height   int
+	CanvasPath string
+	Cooldown   time.Duration
+	Buffer     uint64
+	Width      int
+	Height     int
 }
 
 type Game struct {
 	auth       auth.Authenticator
 	canvas     Canvas
 	canvasLock sync.RWMutex
+	canvasPath string
 	cooldowns  internal.CooldownManager
 	mpmc       mpmc.MPMC[Pixel]
 	wsUpgrader websocket.Upgrader
 }
 
 func NewGame(auth auth.Authenticator, config GameConfig) *Game {
+	var canvas *Canvas
+	if config.CanvasPath != "" {
+		var err error
+		canvas, err = ReadCanvasFromFile(config.CanvasPath)
+
+		if err != nil {
+			log.Println("Failed to open canvas:", err)
+		} else {
+			w, h := canvas.Dimensions()
+			if w != config.Width || h != config.Height {
+				log.Println("Canvas size does not match given dimensions")
+			} else {
+				log.Println("Loaded canvas from", config.CanvasPath)
+			}
+		}
+	}
+
+	if canvas == nil {
+		log.Printf("Creating new white canvas with (%d, %d) dimensions\n", config.Width, config.Height)
+		canvas = NewCanvas(config.Width, config.Height)
+	}
+
 	return &Game{
-		auth:      auth,
-		canvas:    *NewCanvas(config.Width, config.Height),
-		cooldowns: *internal.NewCooldownManager(config.Cooldown),
-		mpmc:      *mpmc.NewMPMC[Pixel](config.Buffer),
+		auth:       auth,
+		canvas:     *canvas,
+		canvasPath: config.CanvasPath,
+		cooldowns:  *internal.NewCooldownManager(config.Cooldown),
+		mpmc:       *mpmc.NewMPMC[Pixel](config.Buffer),
 	}
 }
 
@@ -42,7 +66,6 @@ func (game *Game) GameLoop() {
 	rx := game.mpmc.Subscribe()
 	for {
 		pxl, err := rx.Receive()
-		fmt.Println(pxl)
 
 		if err != nil {
 			continue
@@ -52,6 +75,24 @@ func (game *Game) GameLoop() {
 		game.canvas.Paint(*pxl)
 		game.canvasLock.Unlock()
 	}
+}
+
+func (game *Game) CanvasSavingRoutine() {
+	for {
+		game.SaveCanvas()
+		time.Sleep(time.Minute)
+	}
+}
+
+func (game *Game) SaveCanvas() {
+	game.canvasLock.RLock()
+
+	err := game.canvas.WriteToFile(game.canvasPath)
+	if err != nil {
+		log.Println("Failed to save canvas:", err)
+	}
+
+	game.canvasLock.RUnlock()
 }
 
 func pipeChanToWs(rx mpmc.Consumer[Pixel], conn *websocket.Conn) {
@@ -122,6 +163,10 @@ func (game *Game) HandleConnection(w http.ResponseWriter, r *http.Request) {
 
 		var pixel Pixel
 		if err := json.Unmarshal(msg, &pixel); err != nil {
+			break
+		}
+
+		if !game.canvas.IsInBounds(pixel.Pos[0], pixel.Pos[1]) {
 			break
 		}
 

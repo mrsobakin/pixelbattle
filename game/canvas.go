@@ -2,18 +2,28 @@ package game
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
+	"os"
 )
 
 type Canvas struct {
-	image *image.NRGBA
+	image *image.RGBA
 }
 
 func NewCanvas(width int, height int) *Canvas {
+	image := image.NewRGBA(image.Rect(0, 0, width, height))
+
+	for x := range width {
+		for y := range height {
+			image.Set(x, y, color.White)
+		}
+	}
+
 	return &Canvas{
-		image.NewNRGBA(image.Rect(0, 0, width, height)),
+		image,
 	}
 }
 
@@ -29,4 +39,48 @@ func (canvas *Canvas) ToBytes() []byte {
 	w := bytes.NewBuffer(nil)
 	png.Encode(w, canvas.image)
 	return w.Bytes()
+}
+
+func (canvas *Canvas) WriteToFile(path string) error {
+	f, err := os.Create(path)
+
+	if err != nil {
+		return err
+	}
+
+	return png.Encode(f, canvas.image)
+}
+
+func (canvas *Canvas) Dimensions() (int, int) {
+	point := canvas.image.Rect.Max
+	return point.X, point.Y
+}
+
+func (canvas *Canvas) IsInBounds(x int, y int) bool {
+	w, h := canvas.Dimensions()
+	return x >= 0 && y >= 0 && x < w && y < h
+}
+
+func ReadCanvasFromFile(path string) (*Canvas, error) {
+	f, err := os.Open(path)
+
+	if err != nil {
+		return nil, err
+	}
+
+	img_i, err := png.Decode(f)
+
+	if err != nil {
+		return nil, err
+	}
+
+	img, ok := img_i.(*image.RGBA)
+
+	if !ok {
+		return nil, fmt.Errorf("image is not in RGBA format")
+	}
+
+	return &Canvas{
+		image: img,
+	}, nil
 }
