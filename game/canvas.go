@@ -7,9 +7,11 @@ import (
 	"image/color"
 	"image/png"
 	"os"
+	"sync"
 )
 
 type Canvas struct {
+	lock  sync.RWMutex
 	image *image.RGBA
 }
 
@@ -23,11 +25,15 @@ func NewCanvas(width int, height int) *Canvas {
 	}
 
 	return &Canvas{
-		image,
+		lock:  sync.RWMutex{},
+		image: image,
 	}
 }
 
 func (canvas *Canvas) Paint(pixel Pixel) {
+	canvas.lock.Lock()
+	defer canvas.lock.Unlock()
+
 	canvas.image.Set(pixel.Pos[0], pixel.Pos[1], color.NRGBA{
 		R: pixel.Color[0],
 		G: pixel.Color[1],
@@ -36,12 +42,18 @@ func (canvas *Canvas) Paint(pixel Pixel) {
 }
 
 func (canvas *Canvas) ToBytes() []byte {
+	canvas.lock.RLock()
+	defer canvas.lock.RUnlock()
+
 	w := bytes.NewBuffer(nil)
 	png.Encode(w, canvas.image)
 	return w.Bytes()
 }
 
 func (canvas *Canvas) WriteToFile(path string) error {
+	canvas.lock.RLock()
+	defer canvas.lock.RUnlock()
+
 	f, err := os.Create(path)
 
 	if err != nil {

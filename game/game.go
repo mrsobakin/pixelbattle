@@ -8,7 +8,6 @@ import (
 	"github.com/mrsobakin/pixelbattle/internal/mpmc"
 	"log"
 	"net/http"
-	"sync"
 	"time"
 )
 
@@ -22,8 +21,7 @@ type GameConfig struct {
 
 type Game struct {
 	auth       auth.Authenticator
-	canvas     Canvas
-	canvasLock sync.RWMutex
+	canvas     *Canvas
 	canvasPath string
 	cooldowns  internal.CooldownManager
 	mpmc       mpmc.MPMC[Pixel]
@@ -55,7 +53,7 @@ func NewGame(auth auth.Authenticator, config GameConfig) *Game {
 
 	return &Game{
 		auth:       auth,
-		canvas:     *canvas,
+		canvas:     canvas,
 		canvasPath: config.CanvasPath,
 		cooldowns:  *internal.NewCooldownManager(config.Cooldown),
 		mpmc:       *mpmc.NewMPMC[Pixel](config.Buffer),
@@ -71,9 +69,7 @@ func (game *Game) GameLoop() {
 			continue
 		}
 
-		game.canvasLock.Lock()
 		game.canvas.Paint(*pxl)
-		game.canvasLock.Unlock()
 	}
 }
 
@@ -85,14 +81,10 @@ func (game *Game) CanvasSavingRoutine() {
 }
 
 func (game *Game) SaveCanvas() {
-	game.canvasLock.RLock()
-
 	err := game.canvas.WriteToFile(game.canvasPath)
 	if err != nil {
 		log.Println("Failed to save canvas:", err)
 	}
-
-	game.canvasLock.RUnlock()
 }
 
 func pipeChanToWs(rx mpmc.Consumer[Pixel], conn *websocket.Conn) {
@@ -132,9 +124,7 @@ func (game *Game) HandleConnection(w http.ResponseWriter, r *http.Request) {
 
 	defer conn.Close()
 
-	game.canvasLock.RLock()
 	canvasBytes := game.canvas.ToBytes()
-	game.canvasLock.RUnlock()
 
 	rx := game.mpmc.Subscribe()
 
