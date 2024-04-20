@@ -14,6 +14,8 @@ This repository is a part of `pixelbattle` series - a full stack journey into cr
 
 ## 🤔 Interesting facts
 
+Initially, this project was supposed to be written in Rust. However unfortunately, Rust's websocket implementation, `tungstenite`, [didn't have the feature I needed](https://github.com/snapview/tokio-tungstenite/issues/159). So this one goes to the Gophers. [<img style="width: 1em" src="https://upload.wikimedia.org/wikipedia/commons/2/2d/Go_gopher_favicon.svg">](#)
+
 For this project I had to write my own [mpmc channel](internal/mpmc/mpmc.go) for broadcasting canvas changes. Maybe go already had something like it, or I could kludge something up with the go channels, but I've decided that it would be better just to write it from scratch.
 
 Here's some info about this channel:
